@@ -28,7 +28,7 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☑ Ground-truth answer key (kept separate, never used for training)
 
 ## Phase 3: Ingestion & Data Quality
-- ☐ PostgreSQL in Docker
+- ☑ PostgreSQL in Docker
 - ☐ Ingestion pipeline with manifest validation and load log
 - ☐ Data contracts with Pandera (schema + business rules)
 - ☐ Rejected-records table and data quality report
