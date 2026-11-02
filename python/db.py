@@ -10,8 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
 
 
-def get_engine() -> Engine:
-    """Create a SQLAlchemy engine for the project database, using settings from .env."""
+def get_engine(database: str | None = None) -> Engine:
+    """Create a SQLAlchemy engine for the project database, using settings from .env.
+    `database` lets tests connect to a separate, throwaway database instead."""
     load_dotenv()                                  # reads .env in the folder you run the command from
     url = URL.create(
         drivername="postgresql+psycopg",           # SQLAlchemy dialect + the psycopg driver
@@ -19,6 +20,6 @@ def get_engine() -> Engine:
         password=os.environ["POSTGRES_PASSWORD"],
         host=os.environ.get("POSTGRES_HOST", "localhost"),
         port=int(os.environ.get("POSTGRES_PORT", 5433)),
-        database=os.environ["POSTGRES_DB"],
+        database=database or os.environ["POSTGRES_DB"],
     )
     return create_engine(url, pool_pre_ping=True)  # pre_ping: check the connection is alive before using it
