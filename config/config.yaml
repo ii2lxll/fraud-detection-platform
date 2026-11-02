@@ -2,6 +2,7 @@ project:
   seed: 42
   locale: en_US
   snapshot_date: "2026-06-01"
+  home_country: US
 
 paths:
   reference: data/landing/reference
@@ -24,3 +25,56 @@ customers:
     MOBILE: 0.65
     WEB: 0.25
     BRANCH: 0.10
+
+accounts:
+  savings_probability:
+    RETAIL: 0.40
+    PREMIUM: 0.80
+    SMALL_BUSINESS: 0.30
+  status_weights:
+    ACTIVE: 0.970
+    DORMANT: 0.025
+    CLOSED: 0.005
+  median_balance:
+    RETAIL: 2500
+    PREMIUM: 25000
+    SMALL_BUSINESS: 15000
+  balance_sigma: 1.0
+  currency: USD
+
+cards:
+  network_weights:
+    VISA: 0.60
+    MASTERCARD: 0.40
+  validity_years: 4
+
+merchants:
+  n_merchants: 500
+  foreign_online_share: 0.15
+  foreign_countries: [GB, CA, DE, NL, SG, HK, CN, AE]
+  categories:
+    GROCERY:          {mcc: 5411, weight: 0.14, channel: IN_STORE, risk: LOW}
+    RESTAURANT:       {mcc: 5812, weight: 0.18, channel: IN_STORE, risk: LOW}
+    FUEL:             {mcc: 5541, weight: 0.07, channel: IN_STORE, risk: LOW}
+    PHARMACY:         {mcc: 5912, weight: 0.05, channel: IN_STORE, risk: LOW}
+    CLOTHING:         {mcc: 5651, weight: 0.09, channel: BOTH,     risk: MEDIUM}
+    DEPARTMENT_STORE: {mcc: 5311, weight: 0.05, channel: BOTH,     risk: MEDIUM}
+    ELECTRONICS:      {mcc: 5732, weight: 0.07, channel: BOTH,     risk: HIGH}
+    TRAVEL:           {mcc: 4722, weight: 0.05, channel: ONLINE,   risk: MEDIUM}
+    JEWELLERY:        {mcc: 5944, weight: 0.03, channel: BOTH,     risk: HIGH}
+    UTILITIES:        {mcc: 4900, weight: 0.03, channel: ONLINE,   risk: LOW}
+    TELECOM:          {mcc: 4814, weight: 0.03, channel: ONLINE,   risk: LOW}
+    ENTERTAINMENT:    {mcc: 7832, weight: 0.06, channel: BOTH,     risk: MEDIUM}
+    DIGITAL_GOODS:    {mcc: 5818, weight: 0.09, channel: ONLINE,   risk: HIGH}
+    GAMING:           {mcc: 5816, weight: 0.06, channel: ONLINE,   risk: HIGH}
+
+devices:
+  branch_no_device_probability: 0.50
+  extra_device_probability: 0.30
+  mobile_os_weights:
+    IOS: 0.45
+    ANDROID: 0.55
+  extra_device_weights:
+    IOS: 0.30
+    ANDROID: 0.30
+    WEB_BROWSER: 0.40
