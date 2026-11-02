@@ -1,0 +1,26 @@
+# Runs PostgreSQL 16 in a Docker container.
+#   Start:  docker compose up -d
+#   Stop:   docker compose down          (data is kept in the pgdata volume)
+#   Reset:  docker compose down -v       (deletes ALL database data)
+services:
+  postgres:
+    image: postgres:16
+    container_name: fraud-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"          # your Mac's port : the container's port
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # database files survive container restarts
+      - ./sql/init:/docker-entrypoint-initdb.d:ro   # run our SQL scripts on first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
