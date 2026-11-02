@@ -5,11 +5,14 @@ project:
   home_country: US
 
 paths:
-  reference: data/landing/reference
-  transactions: data/landing/transactions
-  logins: data/landing/logins
-  fraud_reports: data/landing/fraud_reports
+  # The simulator writes its perfect world here (never read by the pipeline)
+  reference: data/_simulated/reference
+  transactions: data/_simulated/transactions
+  logins: data/_simulated/logins
+  fraud_reports: data/_simulated/fraud_reports
   ground_truth: data/_ground_truth
+  # deliver_files.py copies everything here, with realistic problems: this is what the pipeline reads
+  landing: data/landing
 
 customers:
   n_customers: 3000
@@ -191,3 +194,39 @@ fraud_reports:
     ACCOUNT_TAKEOVER: {CALL_CENTRE: 0.6, MOBILE_APP: 0.3, BRANCH: 0.1}
     SCAM: {CALL_CENTRE: 0.5, BRANCH: 0.3, MOBILE_APP: 0.2}
     CARD_NOT_PRESENT: {CHARGEBACK: 0.6, CALL_CENTRE: 0.3, MOBILE_APP: 0.1}
+
+delivery:
+  row_issue_rates:              # share of rows damaged in each delivered file
+    transactions:
+      duplicate: 0.003            # the same record sent twice
+      missing_amount: 0.001
+      amount_as_text: 0.002       # "$1,234.56" instead of 1234.56
+      messy_txn_type: 0.005       # "card_purchase", " CARD_PURCHASE"
+      us_date_format: 0.003       # "06/01/2026 08:13" instead of ISO format
+      orphan_account: 0.0005      # account that doesn't exist in the accounts table
+      negative_amount: 0.0005
+      currency_variant: 0.002     # "usd", "US$"
+      late_arriving: 0.005        # record shows up in the NEXT day's file
+    logins:
+      duplicate: 0.002
+      epoch_timestamp: 0.01       # 1748764800000 instead of "2026-06-01T08:00:00"
+      missing_device: 0.003
+      lowercase_country: 0.005
+    fraud_reports:
+      duplicate: 0.02
+      missing_amount: 0.01
+      slash_date_format: 0.02     # "2026/06/15"
+    customers:
+      duplicate_customer: 0.005   # same customer twice, email in different case
+      missing_state: 0.01
+      invalid_birth_date: 0.002
+      invalid_email: 0.003
+    merchants:
+      missing_mcc: 0.01
+  file_issues:                  # day numbers within the simulation (day 1 = start_date)
+    truncated_transactions_day: 20   # file arrives incomplete; full file re-sent the next day
+    truncated_keep_share: 0.6
+    late_transactions_day: 40        # file delivered late
+    late_by_days: 2
+    rename_column_day: 61            # device_id is renamed device_fingerprint from this day
+    new_column_day: 75               # a new terminal_id column appears from this day

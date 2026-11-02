@@ -26,7 +26,8 @@ def small_world():
 
     full = result["transactions"]
     return {
-        "cfg": cfg, "customers": customers, "accounts": accounts, "devices": devices, "mules": result["mules"],
+        "cfg": cfg, "customers": customers, "accounts": accounts, "cards": cards, "merchants": merchants,
+        "devices": devices, "mules": result["mules"],
         "txns": full[COLUMNS],                                                  # what the pipeline sees
         "labels": full.loc[full["case_id"].notna(), ["txn_id"] + LABEL_COLUMNS],  # the answer key
     }

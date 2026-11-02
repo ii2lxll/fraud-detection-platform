@@ -23,8 +23,8 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☑ Daily transactions with realistic behaviour
 - ☑ Fraud patterns: account takeover, scams (APP), card-not-present, money mules
 - ☑ Fraud reports with realistic delay, unreported fraud and false claims
-- ☐ Deliberately injected data quality issues, schema drift, late and incomplete files
-- ☐ Daily delivery manifests (row counts + checksums)
+- ☑ Deliberately injected data quality issues, schema drift, late and incomplete files
+- ☑ Daily delivery manifests (row counts + checksums)
 - ☑ Ground-truth answer key (kept separate, never used for training)
 
 ## Phase 3: Ingestion & Data Quality
@@ -55,7 +55,7 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☐ **LLM alert summaries (local model via Ollama):** plain-English case notes for investigators; the LLM explains, it never decides
 
 ## Phase 7: Operations
-- ☐ Orchestration with Prefect (daily end-to-end run, retries, logs)
+- ◐ Orchestration: one-command simulation runner done; Prefect for the daily pipeline later
 - ☐ Batch scoring and daily prioritised alert queue
 - ☐ Monitoring: performance tracking and PSI drift
 - ☐ Automated weekly monitoring report
