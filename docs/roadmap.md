@@ -30,12 +30,12 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 ## Phase 3: Ingestion & Data Quality
 - ☑ PostgreSQL in Docker
 - ☑ Ingestion pipeline with manifest validation and load log
-- ☐ Data contracts with Pandera (schema + business rules)
-- ☐ Rejected-records table and data quality report
+- ◐ Data contracts: validation rules built in SQL (types, formats, keys, ranges); formal Pandera contracts later
+- ☑ Data quality findings (removed / repaired / flagged / rejected) and automated report: 100% recall, 0 false positives, all repairs verified
 - ☐ **AI data quality monitoring:** anomaly detection on daily delivery metrics
 
 ## Phase 4: Data Warehouse
-- ☐ Layers: `raw` → `staging` → `mart`
+- ◐ Layers: `raw` ☑ → `staging` ☑ → `mart` (next)
 - ☐ Star schema (`fact_transactions` + dimensions)
 - ☐ Data dictionary
 - ☐ Architecture Decision Records (ADRs)

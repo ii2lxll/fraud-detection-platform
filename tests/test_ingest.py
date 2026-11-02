@@ -1,41 +1,24 @@
 """
 Integration tests: run the real ingestion pipeline against a real PostgreSQL database.
 
-They use a separate throwaway database (fraud_platform_test), created at the start and dropped at the end,
-so your real warehouse is never touched. If the database isn't running, these tests are SKIPPED, not failed.
+They use a separate throwaway database (created by the warehouse_factory fixture in conftest.py and
+dropped at the end), so your real warehouse is never touched.
+If the database isn't running, these tests are SKIPPED, not failed.
 """
 import hashlib
 import json
 import shutil
+from datetime import datetime
 
 import pytest
-from sqlalchemy import text
 
-from db import get_engine
 from ingest import ingest, parse_file, raw_row_counts
-from warehouse import Warehouse, ident
-
-TEST_DB = "fraud_platform_test"
+from warehouse import ident
 
 
 @pytest.fixture(scope="module")
-def warehouse():
-    try:
-        admin = get_engine().execution_options(isolation_level="AUTOCOMMIT")   # CREATE DATABASE can't run in a transaction
-        with admin.connect() as conn:
-            conn.execute(text(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)"))
-            conn.execute(text(f"CREATE DATABASE {TEST_DB}"))
-    except Exception as exc:
-        pytest.skip(f"PostgreSQL not reachable ({exc.__class__.__name__}): start it with 'docker compose up -d'")
-
-    engine = get_engine(database=TEST_DB)
-    wh = Warehouse(engine)
-    wh.apply_sql_files("sql/init")
-    yield wh
-
-    engine.dispose()
-    with admin.connect() as conn:
-        conn.execute(text(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)"))
+def warehouse(warehouse_factory):
+    return warehouse_factory("fraud_platform_test_ingest")
 
 
 @pytest.fixture(scope="module")
@@ -77,8 +60,7 @@ def test_late_file_keeps_its_real_delivery_date(first_run, warehouse, delivered)
     rows = q(warehouse, "SELECT delivery_date FROM audit.file_load_log WHERE file_name = :f",
              f=f"transactions/{late_file}")
     file_date = late_file.split("_")[-1].replace(".csv", "")
-    assert (rows[0][0] - __import__("datetime").date.fromisoformat(
-        f"{file_date[:4]}-{file_date[4:6]}-{file_date[6:]}")).days == delivered["drift"]["late_by_days"]
+    assert (rows[0][0] - datetime.strptime(file_date, "%Y%m%d").date()).days == delivered["drift"]["late_by_days"]
 
 
 # ---------------------------------------------------------------- what lands in raw

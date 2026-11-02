@@ -6,7 +6,9 @@ import copy
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
+from db import get_engine
 from deliver_files import deliver_all
 from generate_accounts import generate_accounts
 from generate_customers import generate_customers, load_config
@@ -18,6 +20,7 @@ from generate_merchants import generate_merchants
 from generate_transactions import COLUMNS, LABEL_COLUMNS, simulate
 from generate_transactions import write_daily_files as write_transaction_files
 from utils import folder_hashes
+from warehouse import Warehouse
 
 
 @pytest.fixture(scope="session")
@@ -72,3 +75,34 @@ def delivered(small_world, tmp_path_factory):
     issues = deliver_all(cfg)
     return {"cfg": cfg, "issues": issues, "landing": Path(cfg["paths"]["landing"]),
             "simulated_before": simulated_before, "drift": DRIFT}
+
+
+@pytest.fixture(scope="session")
+def warehouse_factory():
+    """Creates throwaway test databases on demand, and drops them all at the end of the test run.
+    If PostgreSQL isn't running, every test that needs a database is SKIPPED (not failed)."""
+    admin = get_engine().execution_options(isolation_level="AUTOCOMMIT")   # CREATE DATABASE can't run in a transaction
+    try:
+        with admin.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        pytest.skip(f"PostgreSQL not reachable ({exc.__class__.__name__}): start it with 'docker compose up -d'")
+
+    created = []
+
+    def make(name: str) -> Warehouse:
+        with admin.connect() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
+            conn.execute(text(f"CREATE DATABASE {name}"))
+        engine = get_engine(database=name)
+        created.append((name, engine))
+        warehouse = Warehouse(engine)
+        warehouse.apply_sql_files("sql/init")
+        return warehouse
+
+    yield make
+
+    for name, engine in created:
+        engine.dispose()
+        with admin.connect() as conn:
+            conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
