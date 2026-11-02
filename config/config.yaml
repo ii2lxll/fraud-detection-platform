@@ -1,0 +1,26 @@
+project:
+  seed: 42
+  locale: en_US
+  snapshot_date: "2026-06-01"
+
+paths:
+  reference: data/landing/reference
+
+customers:
+  n_customers: 3000
+  segment_weights:
+    RETAIL: 0.75
+    PREMIUM: 0.18
+    SMALL_BUSINESS: 0.07
+  income_bands:
+    RETAIL: ["<30k", "30k-50k", "50k-80k"]
+    PREMIUM: ["80k-150k", "150k-300k", ">300k"]
+    SMALL_BUSINESS: ["50k-80k", "80k-150k", "150k-300k"]
+  kyc_weights:
+    LOW: 0.80
+    MEDIUM: 0.17
+    HIGH: 0.03
+  channel_weights:
+    MOBILE: 0.65
+    WEB: 0.25
+    BRANCH: 0.10
