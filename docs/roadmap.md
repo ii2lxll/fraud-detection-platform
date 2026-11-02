@@ -29,7 +29,7 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 
 ## Phase 3: Ingestion & Data Quality
 - ☑ PostgreSQL in Docker
-- ☐ Ingestion pipeline with manifest validation and load log
+- ☑ Ingestion pipeline with manifest validation and load log
 - ☐ Data contracts with Pandera (schema + business rules)
 - ☐ Rejected-records table and data quality report
 - ☐ **AI data quality monitoring:** anomaly detection on daily delivery metrics

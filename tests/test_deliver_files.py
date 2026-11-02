@@ -1,52 +1,11 @@
-import copy
 import hashlib
 import json
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from deliver_files import deliver_all
-from generate_fraud_reports import generate_fraud_reports
-from generate_fraud_reports import write_daily_files as write_report_files
-from generate_logins import generate_logins, write_daily_jsonl
-from generate_transactions import write_daily_files as write_transaction_files
-
-DRIFT = {"truncated_transactions_day": 5, "late_transactions_day": 10, "late_by_days": 2,
-         "rename_column_day": 15, "new_column_day": 20}
-
-
-def folder_hashes(folder: Path) -> dict:
-    return {str(p.relative_to(folder)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(folder.rglob("*")) if p.is_file()}
-
-
-@pytest.fixture(scope="module")
-def delivered(small_world, tmp_path_factory):
-    """Write the small world to a temporary 'simulated' folder, then deliver it to a temporary landing zone."""
-    w = small_world
-    cfg = copy.deepcopy(w["cfg"])
-    root = tmp_path_factory.mktemp("delivery")
-    for key in ["reference", "transactions", "logins", "fraud_reports", "ground_truth", "landing"]:
-        cfg["paths"][key] = str(root / key)
-    cfg["delivery"]["file_issues"].update(DRIFT)
-
-    snap = cfg["project"]["snapshot_date"].replace("-", "")
-    ref = Path(cfg["paths"]["reference"])
-    ref.mkdir(parents=True)
-    for table in ["customers", "accounts", "cards", "merchants", "devices"]:
-        w[table].to_csv(ref / f"{table}_{snap}.csv", index=False)
-    write_transaction_files(w["txns"], Path(cfg["paths"]["transactions"]))
-    logins = generate_logins(w["txns"], w["labels"], w["accounts"], w["devices"], cfg)
-    write_daily_jsonl(logins, Path(cfg["paths"]["logins"]))
-    reports, _ = generate_fraud_reports(w["txns"], w["labels"], w["accounts"], cfg)
-    write_report_files(reports, cfg, Path(cfg["paths"]["fraud_reports"]))
-
-    simulated_before = folder_hashes(Path(cfg["paths"]["transactions"]))
-    issues = deliver_all(cfg)
-    return {"cfg": cfg, "issues": issues, "landing": Path(cfg["paths"]["landing"]),
-            "simulated_before": simulated_before}
-
+from utils import folder_hashes
 
 def manifest_entries(landing: Path) -> list:
     entries = []
@@ -101,16 +60,16 @@ def test_late_file_is_delivered_days_later(delivered):
     assert len(late_files) == 1
     entry = next(e for e in manifest_entries(delivered["landing"]) if e["file"].endswith(late_files[0]))
     file_date = pd.Timestamp(late_files[0].split("_")[-1].replace(".csv", ""))
-    assert pd.Timestamp(entry["delivery_date"]) - file_date == pd.Timedelta(days=DRIFT["late_by_days"])
+    assert pd.Timestamp(entry["delivery_date"]) - file_date == pd.Timedelta(days=delivered["drift"]["late_by_days"])
 
 
 def test_schema_drift_appears_on_the_configured_days(delivered):
     files = sorted(f for f in (delivered["landing"] / "transactions").glob("*.csv") if "_resend" not in f.name)
     for day_number, f in enumerate(files, start=1):
         header = pd.read_csv(f, nrows=0).columns
-        renamed = day_number >= DRIFT["rename_column_day"]
+        renamed = day_number >= delivered["drift"]["rename_column_day"]
         assert ("device_fingerprint" in header) == renamed and ("device_id" in header) == (not renamed)
-        assert ("terminal_id" in header) == (day_number >= DRIFT["new_column_day"])
+        assert ("terminal_id" in header) == (day_number >= delivered["drift"]["new_column_day"])
 
 
 def test_no_transaction_is_lost(delivered, small_world):
