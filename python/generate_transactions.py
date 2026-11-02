@@ -5,8 +5,12 @@ The engine works in two phases:
   1. PLAN:    decide what every active customer does each day (purchases, transfers, salary...)
   2. PROCESS: replay all events in time order, update balances, decline when funds are short
 
+Fraud cases (see fraud_patterns.py) are mixed into the same event stream, so stolen money
+really leaves victims' balances and really arrives in mule accounts.
+
 Inputs:  reference tables in data/landing/reference/
-Output:  data/landing/transactions/transactions_<YYYYMMDD>.csv  (one file per day)
+Outputs: data/landing/transactions/transactions_<YYYYMMDD>.csv  (one file per day, NO fraud labels)
+         data/_ground_truth/  transaction_labels.csv, fraud_cases.csv, mule_accounts.csv
 """
 import heapq
 import logging
@@ -18,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from fraud_patterns import plan_fraud, plan_mule_cashout, select_mules
 from generate_customers import load_config, weighted_choice
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -28,6 +33,7 @@ COLUMNS = [
     "amount", "currency", "channel", "merchant_id", "counterparty_account", "counterparty_bank",
     "device_id", "balance_before", "balance_after", "status", "decline_reason",
 ]
+LABEL_COLUMNS = ["case_id", "fraud_type", "fraud_role"]     # ground truth only
 BILLER_CATEGORIES = ["UTILITIES", "TELECOM"]
 
 
@@ -70,9 +76,14 @@ def build_context(customers, accounts, cards, merchants, devices, cfg) -> dict:
     active_main = accounts[(accounts["account_type"] != "SAVINGS") & (accounts["status"] == "ACTIVE")]
     shops = merchants[~merchants["category"].isin(BILLER_CATEGORIES)]
     category_weight = {c: info["weight"] for c, info in cfg["merchants"]["categories"].items()}
+    risky_online = merchants[(merchants["risk_tier"] == "HIGH") & (merchants["channel"] == "ONLINE")]
+    is_home = risky_online["country"] == cfg["project"]["home_country"]
+    start = date.fromisoformat(cfg["simulation"]["start_date"])
 
     return {
         "t": t,
+        "cfg": cfg,
+        "sim_end": datetime.combine(start + timedelta(days=cfg["simulation"]["n_days"]), datetime.min.time()),
         "currency": cfg["accounts"]["currency"],
         "bank_code": cfg["simulation"]["bank_code"],
         "external_banks": cfg["simulation"]["external_banks"],
@@ -81,11 +92,14 @@ def build_context(customers, accounts, cards, merchants, devices, cfg) -> dict:
         "card_by_account": cards[cards["card_status"] == "ACTIVE"].set_index("account_id")["card_id"].to_dict(),
         "devices_by_customer": devices.groupby("customer_id")["device_id"].apply(list).to_dict(),
         "device_type": devices.set_index("device_id")["device_type"].to_dict(),
-        "customer": customers.set_index("customer_id")[["segment", "income_band"]].to_dict("index"),
+        "customer": customers.set_index("customer_id")[
+            ["segment", "income_band", "date_of_birth", "customer_since"]].to_dict("index"),
         "shop_ids": shops["merchant_id"].tolist(),
         "shop_weights": shops["category"].map(category_weight).tolist(),
         "merchant_channel": merchants.set_index("merchant_id")["channel"].to_dict(),
         "biller_ids": merchants.loc[merchants["category"].isin(BILLER_CATEGORIES), "merchant_id"].tolist(),
+        "risky_home": risky_online.loc[is_home, "merchant_id"].tolist(),        # targets for card fraud
+        "risky_foreign": risky_online.loc[~is_home, "merchant_id"].tolist(),
     }
 
 
@@ -101,6 +115,8 @@ def build_profiles(ctx: dict, rng: random.Random) -> list:
             "account_id": acc.account_id,
             "segment": info["segment"],
             "income_band": info["income_band"],
+            "date_of_birth": date.fromisoformat(str(info["date_of_birth"])),
+            "customer_since": date.fromisoformat(str(info["customer_since"])),
             "card_id": ctx["card_by_account"].get(acc.account_id),
             "devices": ctx["devices_by_customer"].get(acc.customer_id, []),
             "favourite_shops": rng.sample(ctx["shop_ids"], t["favourite_merchants"]),
@@ -199,7 +215,23 @@ def plan_all_events(profiles: list, ctx: dict, cfg: dict, rng: random.Random, np
 
 
 # ---------------------------------------------------------------- phase 2: process
-def process_events(events: list, balances: dict, ctx: dict, rng: random.Random) -> pd.DataFrame:
+def resolve_amount(e: dict, balance: float, rng: random.Random) -> float:
+    """Fraud amounts often depend on the balance at that moment ("take 60% of what's there")."""
+    rule = e.get("amount_rule")
+    if rule is None:
+        return e["amount"]
+    kind = rule[0]
+    if kind == "fraction":
+        amount = balance * rule[1]
+    else:                                                   # "fraction_capped"
+        amount = min(balance * rule[1], rule[2])
+    if amount < 20:                                         # account already empty: the attempt will fail
+        return float(rng.randint(10, 100) * 20)
+    return round(amount, 2)
+
+
+def process_events(events: list, balances: dict, ctx: dict, rng: random.Random,
+                   fraud_rng: random.Random, mules: dict) -> pd.DataFrame:
     """Phase 2: replay events in time order, keep running balances, decline if funds are short."""
     heap = [(e["ts"], i, e) for i, e in enumerate(events)]
     heapq.heapify(heap)                                   # always gives us the earliest event next
@@ -209,15 +241,17 @@ def process_events(events: list, balances: dict, ctx: dict, rng: random.Random) 
     while heap:
         ts, _, e = heapq.heappop(heap)
         before = balances[e["account_id"]]
+        amount = resolve_amount(e, before, fraud_rng)
 
-        if e["direction"] == "DR" and e["amount"] > before:
-            # Most people check their balance first and simply don't make the payment
-            if rng.random() >= ctx["t"]["attempt_when_short"]:
+        if e["direction"] == "DR" and amount > before:
+            # Most people check their balance first and simply don't make the payment.
+            # Criminals (and pressured scam victims) try anyway.
+            if not e.get("always_attempt") and rng.random() >= ctx["t"]["attempt_when_short"]:
                 continue
             status, reason, after = "DECLINED", "INSUFFICIENT_FUNDS", before
         else:
             status, reason = "SUCCESS", None
-            after = round(before - e["amount"], 2) if e["direction"] == "DR" else round(before + e["amount"], 2)
+            after = round(before - amount, 2) if e["direction"] == "DR" else round(before + amount, 2)
             balances[e["account_id"]] = after
 
         txn_id = f"TXN{len(rows) + 1:09d}"
@@ -225,39 +259,62 @@ def process_events(events: list, balances: dict, ctx: dict, rng: random.Random) 
         rows.append({
             "txn_id": txn_id, "txn_ref": txn_ref, "txn_timestamp": ts, "account_id": e["account_id"],
             "card_id": e["card_id"], "txn_type": e["txn_type"], "direction": e["direction"],
-            "amount": e["amount"], "currency": ctx["currency"], "channel": e["channel"],
+            "amount": amount, "currency": ctx["currency"], "channel": e["channel"],
             "merchant_id": e["merchant_id"], "counterparty_account": e["counterparty_account"],
             "counterparty_bank": e["counterparty_bank"], "device_id": e["device_id"],
             "balance_before": before, "balance_after": after, "status": status, "decline_reason": reason,
+            "case_id": e.get("case_id"), "fraud_type": e.get("fraud_type"), "fraud_role": e.get("fraud_role"),
         })
 
         # A successful transfer to another customer of our bank creates their incoming credit
         if status == "SUCCESS" and e["txn_type"] == "TRANSFER_OUT" and e["counterparty_bank"] == ctx["bank_code"]:
             credit = {
                 "ts": ts + timedelta(seconds=1), "account_id": e["counterparty_account"], "txn_type": "TRANSFER_IN",
-                "direction": "CR", "amount": e["amount"], "channel": "INTERNAL", "card_id": None,
+                "direction": "CR", "amount": amount, "channel": "INTERNAL", "card_id": None,
                 "merchant_id": None, "counterparty_account": e["account_id"],
                 "counterparty_bank": ctx["bank_code"], "device_id": None, "txn_ref": txn_ref,
             }
+            if e.get("case_id"):                    # stolen money arriving at a mule
+                credit.update(case_id=e["case_id"], fraud_type=e["fraud_type"], fraud_role="MULE_INBOUND")
             counter += 1
             heapq.heappush(heap, (credit["ts"], counter, credit))
 
-    df = pd.DataFrame(rows, columns=COLUMNS)
+        # A mule that receives stolen money moves it out a few hours later
+        if status == "SUCCESS" and e.get("fraud_role") == "MULE_INBOUND" and e["account_id"] in mules:
+            for cashout in plan_mule_cashout(fraud_rng, mules[e["account_id"]], ts, amount, e["case_id"],
+                                             e["fraud_type"], ctx, ctx["cfg"]):
+                counter += 1
+                heapq.heappush(heap, (cashout["ts"], counter, cashout))
+
+    df = pd.DataFrame(rows, columns=COLUMNS + LABEL_COLUMNS)
     df["txn_timestamp"] = pd.to_datetime(df["txn_timestamp"])
     return df
 
 
 # ---------------------------------------------------------------- main entry points
-def generate_transactions(customers, accounts, cards, merchants, devices, cfg) -> pd.DataFrame:
+def simulate(customers, accounts, cards, merchants, devices, cfg) -> dict:
+    """Run the full simulation: normal behaviour + fraud. Returns transactions (with labels) and mules."""
     seed = cfg["project"]["seed"] + 4
     rng = random.Random(seed)
     np_rng = np.random.default_rng(seed)          # numpy has a Poisson sampler; the random module doesn't
+    fraud_rng = random.Random(seed + 1)           # separate stream: adding fraud never changes normal behaviour plans
 
     ctx = build_context(customers, accounts, cards, merchants, devices, cfg)
     profiles = build_profiles(ctx, rng)
     events = plan_all_events(profiles, ctx, cfg, rng, np_rng)
+
+    mules = select_mules(profiles, cfg, fraud_rng)
+    events += plan_fraud(profiles, mules, ctx, cfg, fraud_rng)
+
     balances = accounts.set_index("account_id")["current_balance"].to_dict()
-    return process_events(events, balances, ctx, rng)
+    mule_lookup = {m["account_id"]: m for m in mules}
+    txns = process_events(events, balances, ctx, rng, fraud_rng, mule_lookup)
+    return {"transactions": txns, "mules": mules}
+
+
+def generate_transactions(customers, accounts, cards, merchants, devices, cfg) -> pd.DataFrame:
+    """Transactions including the hidden label columns (used by tests and the ground-truth writer)."""
+    return simulate(customers, accounts, cards, merchants, devices, cfg)["transactions"]
 
 
 def write_daily_files(df: pd.DataFrame, out_dir: Path) -> int:
@@ -265,9 +322,34 @@ def write_daily_files(df: pd.DataFrame, out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     n_files = 0
     for day, part in df.groupby(df["txn_timestamp"].dt.date):
-        part.to_csv(out_dir / f"transactions_{day:%Y%m%d}.csv", index=False)
+        part[COLUMNS].to_csv(out_dir / f"transactions_{day:%Y%m%d}.csv", index=False)   # labels stay out
         n_files += 1
     return n_files
+
+
+def write_ground_truth(df: pd.DataFrame, mules: list, out_dir: Path) -> pd.DataFrame:
+    """The answer key: which transactions were fraud. Used ONLY to evaluate models, never to train on directly."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    labelled = df[df["case_id"].notna()]
+    labelled[["txn_id"] + LABEL_COLUMNS].to_csv(out_dir / "transaction_labels.csv", index=False)
+
+    victim = labelled[labelled["fraud_role"] == "VICTIM"]
+    cases = victim.groupby("case_id").agg(
+        fraud_type=("fraud_type", "first"),
+        victim_account=("account_id", "first"),
+        first_txn=("txn_timestamp", "min"),
+        last_txn=("txn_timestamp", "max"),
+        n_victim_txns=("txn_id", "count"),
+        attacker_device=("device_id", "first"),
+    )
+    lost = victim[victim["status"] == "SUCCESS"].groupby("case_id")["amount"].sum()
+    cases["amount_lost"] = lost.reindex(cases.index).fillna(0).round(2)
+    cases.loc[cases["fraud_type"] != "ACCOUNT_TAKEOVER", "attacker_device"] = None
+    cases.reset_index().to_csv(out_dir / "fraud_cases.csv", index=False)
+
+    pd.DataFrame([{"account_id": m["account_id"], "customer_id": m["customer_id"]} for m in mules]) \
+        .to_csv(out_dir / "mule_accounts.csv", index=False)
+    return cases
 
 
 def main():
@@ -277,15 +359,19 @@ def main():
     load = lambda name: pd.read_csv(ref_dir / f"{name}_{snap}.csv")
 
     logger.info("Simulating %s days of transactions...", cfg["simulation"]["n_days"])
-    df = generate_transactions(load("customers"), load("accounts"), load("cards"),
-                               load("merchants"), load("devices"), cfg)
-    n_files = write_daily_files(df, Path(cfg["paths"]["transactions"]))
+    result = simulate(load("customers"), load("accounts"), load("cards"), load("merchants"), load("devices"), cfg)
+    df = result["transactions"]
 
-    declined = (df["status"] == "DECLINED").mean()
+    n_files = write_daily_files(df, Path(cfg["paths"]["transactions"]))
+    cases = write_ground_truth(df, result["mules"], Path(cfg["paths"]["ground_truth"]))
+
     logger.info("Created %s transactions in %s daily files", f"{len(df):,}", n_files)
-    logger.info("Average per day: %s", f"{len(df) / n_files:,.0f}")
-    logger.info("Decline rate: %.2f%%", declined * 100)
-    logger.info("Types: %s", df["txn_type"].value_counts().to_dict())
+    logger.info("Decline rate: %.2f%%", (df["status"] == "DECLINED").mean() * 100)
+    logger.info("Fraud cases: %s", cases["fraud_type"].value_counts().to_dict())
+    logger.info("Fraud transactions by role: %s", df["fraud_role"].value_counts().to_dict())
+    logger.info("Fraud share of transactions: %.3f%%", df["case_id"].notna().mean() * 100)
+    logger.info("Money lost by type: %s", cases.groupby("fraud_type")["amount_lost"].sum().round(0).to_dict())
+    logger.info("Mule accounts: %s", len(result["mules"]))
 
 
 if __name__ == "__main__":

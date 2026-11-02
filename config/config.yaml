@@ -7,6 +7,7 @@ project:
 paths:
   reference: data/landing/reference
   transactions: data/landing/transactions
+  ground_truth: data/_ground_truth
 
 customers:
   n_customers: 3000
@@ -121,3 +122,40 @@ transactions:
   favourite_merchants: 8
   favourite_merchant_share: 0.80
   hour_weights: [1, 1, 1, 1, 1, 2, 4, 6, 8, 8, 9, 10, 12, 11, 9, 8, 8, 9, 10, 10, 9, 7, 4, 2]
+
+fraud:
+  mule_share: 0.015              # share of customers recruited as money mules
+  mule_max_age: 35
+  mule_max_tenure_days: 365      # mules are usually recently opened accounts
+  mule_segment: RETAIL           # mules typically have small balances
+  cases:                         # number of fraud cases over the whole simulation
+    ACCOUNT_TAKEOVER: 60
+    SCAM: 40
+    CARD_NOT_PRESENT: 80
+  account_takeover:
+    transfers: [2, 5]
+    minutes_between: [2, 15]
+    drain_fraction: [0.3, 0.7]   # share of the current balance taken per transfer
+    to_mule_share: 0.6
+    night_hours: [0, 1, 2, 3, 4, 5]
+    night_share: 0.6
+  scam:
+    older_victim_age: 60
+    older_victim_weight: 3       # older customers are targeted more often
+    payments: [1, 4]
+    days_span: [1, 7]
+    balance_fraction: [0.2, 0.5]
+    max_payment: [1000, 15000]
+    to_mule_share: 0.5
+    hours: [9, 20]
+  card_not_present:
+    purchases: [3, 8]
+    hours_span: [1, 6]
+    amount: [100, 1500]
+    test_amount: [1, 5]
+    foreign_share: 0.6
+  mule_cashout:
+    delay_minutes: [30, 720]
+    received_fraction: [0.9, 1.0]   # mules keep a small cut
+    atm_max_withdrawal: 1000
+    onward_transfer_share: 0.4
