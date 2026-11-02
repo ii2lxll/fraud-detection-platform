@@ -7,6 +7,8 @@ project:
 paths:
   reference: data/landing/reference
   transactions: data/landing/transactions
+  logins: data/landing/logins
+  fraud_reports: data/landing/fraud_reports
   ground_truth: data/_ground_truth
 
 customers:
@@ -159,3 +161,33 @@ fraud:
     received_fraction: [0.9, 1.0]   # mules keep a small cut
     atm_max_withdrawal: 1000
     onward_transfer_share: 0.4
+
+logins:
+  minutes_before_activity: [1, 15]      # customers log in shortly before doing something
+  session_timeout_minutes: 30           # the app logs you out after inactivity
+  extra_logins_per_device_per_day: 0.3  # balance checks with no transaction
+  failed_login_rate: 0.03               # typos before a successful login
+  home_ip_share: 0.85                   # usual home/mobile IP; otherwise a new IP in the same country
+  travel_share: 0.03                    # logins while abroad
+  attacker:
+    foreign_share: 0.7
+    countries: [RU, BR, VN, RO, NG, ID, PH, CN]
+    failed_attempts: [0, 4]             # password guessing / failed one-time codes
+    minutes_before_transfer: [3, 30]
+
+fraud_reports:
+  report_probability:                   # many victims never report
+    ACCOUNT_TAKEOVER: 0.95
+    SCAM: 0.75
+    CARD_NOT_PRESENT: 0.90
+  delay_days:                           # days from the last fraud transaction to the report
+    ACCOUNT_TAKEOVER: [0, 3]
+    SCAM: [1, 21]
+    CARD_NOT_PRESENT: [2, 45]           # card fraud is often noticed only on the monthly statement
+  investigation_days: [3, 14]
+  missed_test_charge_share: 0.5         # customers often overlook the tiny test purchase
+  false_claims: 40                      # customers disputing their own genuine transactions
+  channels:
+    ACCOUNT_TAKEOVER: {CALL_CENTRE: 0.6, MOBILE_APP: 0.3, BRANCH: 0.1}
+    SCAM: {CALL_CENTRE: 0.5, BRANCH: 0.3, MOBILE_APP: 0.2}
+    CARD_NOT_PRESENT: {CHARGEBACK: 0.6, CALL_CENTRE: 0.3, MOBILE_APP: 0.1}

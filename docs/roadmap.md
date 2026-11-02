@@ -19,10 +19,10 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☑ Customers (core banking snapshot)
 - ☑ Accounts and cards
 - ☑ Merchants
-- ◐ Devices and login events (JSON Lines): devices done, login events next
+- ☑ Devices and login events (JSON Lines)
 - ☑ Daily transactions with realistic behaviour
 - ☑ Fraud patterns: account takeover, scams (APP), card-not-present, money mules
-- ☐ Fraud reports with realistic delay, unreported fraud and false claims
+- ☑ Fraud reports with realistic delay, unreported fraud and false claims
 - ☐ Deliberately injected data quality issues, schema drift, late and incomplete files
 - ☐ Daily delivery manifests (row counts + checksums)
 - ☑ Ground-truth answer key (kept separate, never used for training)
