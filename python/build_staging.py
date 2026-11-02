@@ -7,10 +7,8 @@ tables stay exactly as they were. Staging is always rebuilt from raw, so it can 
     python3 python/build_staging.py
 """
 import logging
-import time
-from pathlib import Path
 
-from warehouse import Warehouse, split_sql
+from warehouse import Warehouse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -20,13 +18,7 @@ STAGING_TABLES = ["customers", "accounts", "cards", "merchants", "devices", "tra
 
 
 def build_staging(warehouse: Warehouse, sql_folder: str = STAGING_SQL) -> None:
-    files = sorted(Path(sql_folder).glob("*.sql"))
-    with warehouse.transaction() as tx:
-        for path in files:
-            started = time.perf_counter()
-            for statement in split_sql(path.read_text(encoding="utf-8")):
-                tx.execute(statement)
-            logger.info("  %-22s %.1fs", path.name, time.perf_counter() - started)
+    warehouse.run_sql_folder(sql_folder)
 
 
 def staging_summary(warehouse: Warehouse) -> dict:

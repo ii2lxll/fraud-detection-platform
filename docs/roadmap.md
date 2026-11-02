@@ -35,10 +35,11 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☐ **AI data quality monitoring:** anomaly detection on daily delivery metrics
 
 ## Phase 4: Data Warehouse
-- ◐ Layers: `raw` ☑ → `staging` ☑ → `mart` (next)
-- ☐ Star schema (`fact_transactions` + dimensions)
-- ☐ Data dictionary
-- ☐ Architecture Decision Records (ADRs)
+- ☑ Layers: `raw` → `staging` → `mart`, each rebuilt in one transaction
+- ☑ Star schema: 3 facts (transactions, logins, fraud claims) + 4 dimensions; fraud labels from the bank's own claims; no PII
+- ☑ Data dictionary generated from the database (test fails if any column is undocumented)
+- ☑ Architecture Decision Records (4 so far)
+- ☑ SAS-ready CSV export with manifest
 
 ## Phase 5: Analytics & Modelling (SAS core)
 - ☐ Exploratory data analysis in SAS
