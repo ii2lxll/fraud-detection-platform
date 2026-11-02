@@ -6,6 +6,7 @@ project:
 
 paths:
   reference: data/landing/reference
+  transactions: data/landing/transactions
 
 customers:
   n_customers: 3000
@@ -78,3 +79,45 @@ devices:
     IOS: 0.30
     ANDROID: 0.30
     WEB_BROWSER: 0.40
+
+simulation:
+  start_date: "2026-06-01"
+  n_days: 90
+  bank_code: NORTHBRIDGE
+  external_banks: [HARBOR_BANK, SUMMIT_CU, PIONEER_BANK, CRESTVIEW_BANK, UNITY_FEDERAL]
+
+transactions:
+  daily_rate:                # average transactions per customer per day
+    RETAIL: 1.6
+    PREMIUM: 1.7
+    SMALL_BUSINESS: 2.5
+  type_weights:
+    CARD_PURCHASE: 0.61
+    TRANSFER_OUT: 0.20
+    TRANSFER_IN: 0.04
+    BILL_PAYMENT: 0.07
+    ATM_WITHDRAWAL: 0.08
+  amounts:                   # median and spread (sigma) of a log-normal distribution
+    CARD_PURCHASE:   {median: 40,  sigma: 0.9}
+    TRANSFER_OUT:    {median: 120, sigma: 1.0}
+    TRANSFER_IN:     {median: 150, sigma: 1.0}
+    BILL_PAYMENT:    {median: 90,  sigma: 0.5}
+    ATM_WITHDRAWAL:  {median: 100, sigma: 0.6}
+    BUSINESS_INCOME: {median: 260, sigma: 0.8}
+  income_midpoint:           # yearly income: sizes salaries and scales spending
+    "<30k": 24000
+    "30k-50k": 40000
+    "50k-80k": 65000
+    "80k-150k": 115000
+    "150k-300k": 225000
+    ">300k": 400000
+  income_reference: 3000     # monthly income at which amounts equal the medians above
+  salary_day: 25
+  business_income_rate: 0.5  # SMALL_BUSINESS incoming payments per day
+  internal_transfer_share: 0.30   # share of payees who also bank with us
+  regular_payees: 4                # people each customer pays regularly
+  regular_payee_share: 0.85        # transfers that go to a regular payee
+  attempt_when_short: 0.25   # share of customers who still try to pay when funds are short
+  favourite_merchants: 8
+  favourite_merchant_share: 0.80
+  hour_weights: [1, 1, 1, 1, 1, 2, 4, 6, 8, 8, 9, 10, 12, 11, 9, 8, 8, 9, 10, 10, 9, 7, 4, 2]
