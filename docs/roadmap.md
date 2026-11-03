@@ -42,7 +42,7 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☑ SAS-ready CSV export with manifest
 
 ## Phase 5: Analytics & Modelling (SAS core)
-- ☐ Exploratory data analysis in SAS
+- ◐ SAS import (explicit DATA steps + manifest check) and exploratory data analysis: programs written, first run in SAS OnDemand next
 - ☐ Feature engineering (velocity, behaviour deviation, device novelty, balance drain)
 - ☐ Rules-based baseline
 - ☐ SAS models: logistic regression scorecard, gradient boosting / random forest

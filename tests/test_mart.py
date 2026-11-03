@@ -165,3 +165,36 @@ def test_rebuilding_the_mart_gives_the_same_result(mart, delivered):
 def test_sql_splitter_respects_quotes_and_comments():
     script = "SELECT 1; -- a comment; with a semicolon\nCOMMENT ON X IS 'a; b -- not a comment';\nSELECT 'it''s; fine'"
     assert split_sql(script) == ["SELECT 1", "COMMENT ON X IS 'a; b -- not a comment'", "SELECT 'it''s; fine'"]
+
+
+# ---------------------------------------------------------------- the SAS import must match the mart
+def sas_import_blocks(path: str = "sas/01_import_mart.sas") -> dict:
+    """For each 'data fraud.<table>' step: the INPUT variables (in order) and the LENGTH of text variables."""
+    program = open(path, encoding="utf-8").read()
+    program = re.sub(r"/\*.*?\*/", " ", program, flags=re.DOTALL)             # remove /* comments */
+    blocks = {}
+    for table, body in re.findall(r"data\s+fraud\.(\w+);(.*?)\brun;", program, flags=re.DOTALL | re.IGNORECASE):
+        input_text = re.search(r"\binput\b(.*?);", body, flags=re.DOTALL | re.IGNORECASE).group(1)
+        length_text = " ".join(re.findall(r"\blength\b(.*?);", body, flags=re.DOTALL | re.IGNORECASE))
+        blocks[table] = {
+            "inputs": re.findall(r"[A-Za-z_]\w*", input_text),
+            "lengths": {name: int(n) for name, n in re.findall(r"(\w+)\s+\$(\d+)", length_text)},
+        }
+    return blocks
+
+
+def test_sas_import_reads_every_mart_column_in_order(mart):
+    blocks = sas_import_blocks()
+    assert set(blocks) == set(MART_TABLES)
+    for table, block in blocks.items():
+        columns = [r[0] for r in q(mart, """SELECT column_name FROM information_schema.columns
+                                            WHERE table_schema = 'mart' AND table_name = :t
+                                            ORDER BY ordinal_position""", t=table)]
+        assert block["inputs"] == columns, f"{table}: SAS INPUT does not match the mart columns"
+
+
+def test_sas_text_lengths_never_truncate_values(mart):
+    for table, block in sas_import_blocks().items():
+        for column, length in block["lengths"].items():
+            longest = q(mart, f'SELECT coalesce(max(length("{column}")), 0) FROM mart."{table}"')[0][0]
+            assert longest <= length, f"{table}.{column}: values up to {longest} characters, SAS length is {length}"
