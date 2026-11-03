@@ -1,6 +1,6 @@
 # Data Dictionary: mart schema
 
-_Generated from the database on 2026-11-03. Do not edit by hand: change the `COMMENT ON` statements in `sql/mart/` and re-run `python3 python/data_dictionary.py`._
+_Generated from the database on 2026-11-04. Do not edit by hand: change the `COMMENT ON` statements in `sql/mart/` and re-run `python3 python/data_dictionary.py`._
 
 The mart is a star schema: **fact tables** record events (transactions, logins, fraud claims) and join to **dimension tables** (customer, account, merchant, date) through integer keys.
 

@@ -1,6 +1,6 @@
 # Data Quality Report
 
-_Generated 2026-11-03 00:56. Compares what the pipeline found with the problems deliberately planted in the delivered files._
+_Generated 2026-11-04 03:04. Compares what the pipeline found with the problems deliberately planted in the delivered files._
 
 ## Summary
 
