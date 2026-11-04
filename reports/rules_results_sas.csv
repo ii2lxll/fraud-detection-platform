@@ -1,0 +1,8 @@
+rule,alerts,fraud_caught,fraud_amount_caught
+unknown_device_new_payee,110,110,563902.64
+login_attack,55,55,188671.819999999
+night_drain,279,81,439216.52
+large_new_payee,2079,64,502292.9
+risky_merchant_burst,128,64,43759.13
+foreign_risky_spike,172,48,46659.7599999999
+any_rule,2589,220,663317.52
