@@ -19,6 +19,15 @@ SAS OnDemand cannot connect to the project's PostgreSQL database, so the mart is
 | `00_setup.sas` | Paths and the `FRAUD` library. Run it first in every session. |
 | `01_import_mart.sas` | Imports the 7 tables with explicit column definitions, then checks each one against the export manifest |
 | `02_eda.sas` | Exploratory analysis: device signal, merchant risk, timing, amounts, scam targeting, reporting delay, label maturity. Saves `reports/eda_report.pdf`. |
+| `03_features.sas` | Feature engineering: 18 point-in-time fraud features per transaction in `FRAUD.TXN_FEATURES`. Saves `reports/feature_report.pdf` and `reports/feature_totals_sas.csv`. |
+
+## Validating the features: the parallel run
+
+The same 18 feature definitions are implemented independently in Python ([`python/feature_reference.py`](../python/feature_reference.py)), which is itself tested against a slow brute-force version. To confirm the SAS results:
+
+1. Run `03_features.sas`, then download `reports/feature_totals_sas.csv` from SAS Studio into the project's `reports/` folder
+2. Run `python3 python/feature_reference.py --compare reports/feature_totals_sas.csv`
+3. Every feature must show `MATCH`. Any `DIFFERENT` means the two implementations disagree, and the definition needs checking.
 
 ## Reading the SAS log
 

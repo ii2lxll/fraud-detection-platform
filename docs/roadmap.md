@@ -42,8 +42,8 @@ Status key: ☐ not started · ◐ in progress · ☑ done
 - ☑ SAS-ready CSV export with manifest
 
 ## Phase 5: Analytics & Modelling (SAS core)
-- ◐ SAS import (explicit DATA steps + manifest check) and exploratory data analysis: programs written, first run in SAS OnDemand next
-- ☐ Feature engineering (velocity, behaviour deviation, device novelty, balance drain)
+- ☑ SAS import (explicit DATA steps + manifest check) and exploratory data analysis
+- ◐ Feature engineering in SAS: 18 point-in-time features (velocity, behaviour deviation, device/payee novelty, balance drain, login signals), validated by a parallel run against Python
 - ☐ Rules-based baseline
 - ☐ SAS models: logistic regression scorecard, gradient boosting / random forest
 - ☐ Python benchmark: XGBoost
